@@ -11,6 +11,42 @@ import streamlit.components.v1 as components
 # Set streamlit page configuration
 st.set_page_config(page_title="Seasonal Stock Strategy", layout="wide")
 
+# Floating logo animation at top of homepage
+st.markdown("""
+<style>
+.float-container {
+    position: relative;
+    height: 200px;
+    overflow: hidden;
+    background: linear-gradient(to right, #f5f7fa, #c3cfe2);
+    border-radius: 12px;
+    margin-bottom: 30px;
+}
+.float-logo {
+    position: absolute;
+    width: 60px;
+    animation: float 6s ease-in-out infinite;
+}
+@keyframes float {
+    0% { transform: translateY(0); opacity: 0.85; }
+    50% { transform: translateY(-20px); opacity: 1; }
+    100% { transform: translateY(0); opacity: 0.85; }
+}
+</style>
+<div class="float-container">
+    <img src="https://logo.clearbit.com/apple.com" class="float-logo" style="left:5%;">
+    <img src="https://logo.clearbit.com/tesla.com" class="float-logo" style="left:15%;">
+    <img src="https://logo.clearbit.com/microsoft.com" class="float-logo" style="left:25%;">
+    <img src="https://logo.clearbit.com/amazon.com" class="float-logo" style="left:35%;">
+    <img src="https://logo.clearbit.com/nvidia.com" class="float-logo" style="left:45%;">
+    <img src="https://logo.clearbit.com/google.com" class="float-logo" style="left:55%;">
+    <img src="https://logo.clearbit.com/meta.com" class="float-logo" style="left:65%;">
+    <img src="https://logo.clearbit.com/netflix.com" class="float-logo" style="left:75%;">
+    <img src="https://logo.clearbit.com/berkshirehathaway.com" class="float-logo" style="left:85%;">
+    <img src="https://logo.clearbit.com/jpmorganchase.com" class="float-logo" style="left:95%;">
+</div>
+""", unsafe_allow_html=True)
+
 # App Title and Description
 st.title("\U0001F4C8 Seasonal Stock Strategy Analyzer")
 st.markdown("""
@@ -31,69 +67,36 @@ min_success_rate = st.sidebar.slider("Minimum Success Rate (%)", min_value=0, ma
 
 # Define a function that analyzes seasonal performance of a given stock
 def analyze_seasonality(ticker, start_year, end_year):
-    # Create a ticker object using yfinance for the provided stck symbol
     stock = yf.Ticker(ticker)
-
-    # Download the full historical price data (daily data by default)
     df = stock.history(period="max")
-
-    # Filter data to include only rows
     df = df[(df.index.year >= start_year) & (df.index.year <= end_year)]
-
-    # Extract the month and year from the datetime index
     df['Month'] = df.index.month
     df['Year'] = df.index.year
-
-    # Calculate daily percentage return: (close_td - close_yd) / close_yd
     df['Return'] = df['Close'].pct_change()
 
-    # Compute avergae monthly return across all years
     monthly_avg_returns = df.groupby('Month')['Return'].mean().reset_index()
-
-    # Convert month to abbreviated name
     monthly_avg_returns['Month Name'] = monthly_avg_returns['Month'].apply(lambda x: calendar.month_abbr[x])
-
-    # Convert return to percentage
     monthly_avg_returns['Return (%)'] = monthly_avg_returns['Return'] * 100
 
-    ### Success rate Calculation ###
-
-    # Sum monthly returns for each year-month pair
     success_rate = df.groupby(['Year', 'Month'])['Return'].sum().reset_index()
-
-    # Create a boolean column: True if positive return, False otherwise
     success_rate['Success'] = success_rate['Return'] > 0
-
-    # For each month, calculate the percentage of years that had positive return (success rate)
     success_by_month = success_rate.groupby('Month')['Success'].mean().reset_index()
-
-    # Convert success rate to percentage
     success_by_month['Success Rate (%)'] = success_by_month['Success'] * 100
 
-    ### Combine average returns and success rate ###
-
-    # Merge average return data and success rate by month
-    result  = pd.merge(monthly_avg_returns, success_by_month, on='Month')
-
-    # Sort the results by highest average return to show best months at the top
+    result = pd.merge(monthly_avg_returns, success_by_month, on='Month')
     result = result.sort_values(by='Return (%)', ascending=False)
-
-    # Calculate Buy & Hold total return for reference
-    buy_and_hold_return = (df['Close'].iloc[-1] / df['Close'].iloc[0] - 1) * 100  # in %
-
-    # Return both the result DataFrame and buy & hold performance
+    buy_and_hold_return = (df['Close'].iloc[-1] / df['Close'].iloc[0] - 1) * 100
     return result, buy_and_hold_return, stock.info
 
 # Define a function to fetch latest news headlines from Yahoo Finance RSS feed
 def fetch_news(ticker):
     feed_url = f"https://finance.yahoo.com/rss/headline?s={ticker}"
     feed = feedparser.parse(feed_url)
-    return feed.entries[:5]  # Top 5 news items
+    return feed.entries[:5]
 
 # Submit button
 if st.sidebar.button("Run Analysis"):
     tickers = [t.strip().upper() for t in tickers_input.split(',')]
-
     for ticker in tickers:
         tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Analysis", "News", "Report Preview"])
 
@@ -108,65 +111,21 @@ if st.sidebar.button("Run Analysis"):
             except:
                 st.warning("Unable to retrieve company overview.")
 
-            # Add floating logo word bank animation
-            html_code = '''
-            <style>
-                .float-container {
-                    position: relative;
-                    height: 150px;
-                    overflow: hidden;
-                    background-color: #f0f8ff;
-                    border-radius: 10px;
-                    margin-top: 20px;
-                }
-                .float-logo {
-                    position: absolute;
-                    width: 60px;
-                    animation: float 6s ease-in-out infinite;
-                }
-                @keyframes float {
-                    0% { transform: translateY(0); opacity: 0.8; }
-                    50% { transform: translateY(-20px); opacity: 1; }
-                    100% { transform: translateY(0); opacity: 0.8; }
-                }
-            </style>
-            <div class="float-container">
-                <img src="https://logo.clearbit.com/apple.com" class="float-logo" style="left:10px; top:20px;">
-                <img src="https://logo.clearbit.com/tesla.com" class="float-logo" style="left:80px; top:50px;">
-                <img src="https://logo.clearbit.com/microsoft.com" class="float-logo" style="left:150px; top:30px;">
-                <img src="https://logo.clearbit.com/amazon.com" class="float-logo" style="left:230px; top:60px;">
-                <img src="https://logo.clearbit.com/nvidia.com" class="float-logo" style="left:310px; top:40px;">
-            </div>
-            '''
-            components.html(html_code, height=180)
-
         with tab2:
             st.subheader(f"\U0001F4C9 Seasonal Analysis for {ticker}")
             try:
                 data, buy_hold, _ = analyze_seasonality(ticker, start_year, end_year)
-
-                # Filter rows by minimum success rate
                 data = data[data['Success Rate (%)'] >= min_success_rate]
-
-                # Identify reverse-seasonality months (negative average returns)
                 danger_months = data[data['Return (%)'] < 0]['Month Name'].tolist()
                 if danger_months:
                     st.warning(f"⚠️ Historically underperforming months: {', '.join(danger_months)}")
-
-                # Show Buy & Hold benchmark
                 st.markdown(f"📌 **Buy & Hold Return (Full Period):** {buy_hold:.2f}%")
-
-                # Show top 3 months
                 best_months = data.head(3)
                 st.markdown(f"**Best months to buy {ticker}:** {', '.join(best_months['Month Name'].values)}")
                 st.markdown(f"**Success rate range:** {best_months['Success Rate (%)'].min():.1f}% to {best_months['Success Rate (%)'].max():.1f}%")
 
-                # Plot chart
                 fig = px.bar(
-                    data,
-                    x='Month Name',
-                    y='Return (%)',
-                    color='Success Rate (%)',
+                    data, x='Month Name', y='Return (%)', color='Success Rate (%)',
                     color_continuous_scale='Blues',
                     title=f'Seasonal Return Analysis for {ticker}',
                     labels={'Return (%)': 'Avg Monthly Return', 'Month Name': 'Month'},
@@ -180,10 +139,8 @@ if st.sidebar.button("Run Analysis"):
                     yaxis=dict(title='Average Return (%)', showgrid=True),
                     coloraxis_colorbar=dict(title='Success Rate (%)')
                 )
-
                 st.plotly_chart(fig, use_container_width=True)
                 st.dataframe(data[['Month Name', 'Return (%)', 'Success Rate (%)']].reset_index(drop=True))
-
             except Exception as e:
                 st.error(f"Failed to analyze {ticker}: {str(e)}")
 
