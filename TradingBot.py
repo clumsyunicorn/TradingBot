@@ -6,6 +6,7 @@ import numpy as np
 import plotly.express as px
 import calendar
 import feedparser  # For pulling recent stock news
+import streamlit.components.v1 as components
 
 # Set streamlit page configuration
 st.set_page_config(page_title="Seasonal Stock Strategy", layout="wide")
@@ -106,6 +107,38 @@ if st.sidebar.button("Run Analysis"):
                 st.markdown(f"**Summary:** {info.get('longBusinessSummary', 'No summary available.')}")
             except:
                 st.warning("Unable to retrieve company overview.")
+
+            # Add floating logo word bank animation
+            html_code = '''
+            <style>
+                .float-container {
+                    position: relative;
+                    height: 150px;
+                    overflow: hidden;
+                    background-color: #f0f8ff;
+                    border-radius: 10px;
+                    margin-top: 20px;
+                }
+                .float-logo {
+                    position: absolute;
+                    width: 60px;
+                    animation: float 6s ease-in-out infinite;
+                }
+                @keyframes float {
+                    0% { transform: translateY(0); opacity: 0.8; }
+                    50% { transform: translateY(-20px); opacity: 1; }
+                    100% { transform: translateY(0); opacity: 0.8; }
+                }
+            </style>
+            <div class="float-container">
+                <img src="https://logo.clearbit.com/apple.com" class="float-logo" style="left:10px; top:20px;">
+                <img src="https://logo.clearbit.com/tesla.com" class="float-logo" style="left:80px; top:50px;">
+                <img src="https://logo.clearbit.com/microsoft.com" class="float-logo" style="left:150px; top:30px;">
+                <img src="https://logo.clearbit.com/amazon.com" class="float-logo" style="left:230px; top:60px;">
+                <img src="https://logo.clearbit.com/nvidia.com" class="float-logo" style="left:310px; top:40px;">
+            </div>
+            '''
+            components.html(html_code, height=180)
 
         with tab2:
             st.subheader(f"\U0001F4C9 Seasonal Analysis for {ticker}")
