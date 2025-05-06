@@ -5,19 +5,20 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import calendar
+import feedparser  # For pulling recent stock news
 
 # Set streamlit page configuration
-st.set_page_config(page_title="Seasonal Stock Strategy")
+st.set_page_config(page_title="Seasonal Stock Strategy", layout="wide")
 
 # App Title and Description
-st.title("📈 Seasonal Stock Strategy Analyzer")
+st.title("\U0001F4C8 Seasonal Stock Strategy Analyzer")
 st.markdown("""
 Welcome to your automated seasonal stock planner.  
 Select one or more stock tickers and see when is historically the **best time to buy and sell** for maximum returns.
 """)
 
 # Sidebar for user input
-st.sidebar.header("🔍 Stock Selection")
+st.sidebar.header("\U0001F50D Stock Selection")
 tickers_input = st.sidebar.text_input("Enter stock ticker(s) separated by commas", value="AAPL, MSFT")
 
 # Year range selection
@@ -29,7 +30,6 @@ min_success_rate = st.sidebar.slider("Minimum Success Rate (%)", min_value=0, ma
 
 # Define a function that analyzes seasonal performance of a given stock
 def analyze_seasonality(ticker, start_year, end_year):
-
     # Create a ticker object using yfinance for the provided stck symbol
     stock = yf.Ticker(ticker)
 
@@ -81,57 +81,98 @@ def analyze_seasonality(ticker, start_year, end_year):
     buy_and_hold_return = (df['Close'].iloc[-1] / df['Close'].iloc[0] - 1) * 100  # in %
 
     # Return both the result DataFrame and buy & hold performance
-    return result, buy_and_hold_return
+    return result, buy_and_hold_return, stock.info
 
-### Running the function for a specific stock ###
+# Define a function to fetch latest news headlines from Yahoo Finance RSS feed
+def fetch_news(ticker):
+    feed_url = f"https://finance.yahoo.com/rss/headline?s={ticker}"
+    feed = feedparser.parse(feed_url)
+    return feed.entries[:5]  # Top 5 news items
 
 # Submit button
 if st.sidebar.button("Run Analysis"):
     tickers = [t.strip().upper() for t in tickers_input.split(',')]
 
     for ticker in tickers:
-        st.subheader(f"📊 Seasonal Analysis for {ticker}")
-        try:
-            data, buy_hold = analyze_seasonality(ticker, start_year, end_year)
+        tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Analysis", "News", "Report Preview"])
 
-            # Filter rows by minimum success rate
-            data = data[data['Success Rate (%)'] >= min_success_rate]
+        with tab1:
+            st.subheader(f"\U0001F4C8 Company Overview: {ticker}")
+            try:
+                _, _, info = analyze_seasonality(ticker, start_year, end_year)
+                st.markdown(f"**Company Name:** {info.get('longName', 'N/A')}")
+                st.markdown(f"**Sector:** {info.get('sector', 'N/A')}")
+                st.markdown(f"**Industry:** {info.get('industry', 'N/A')}")
+                st.markdown(f"**Summary:** {info.get('longBusinessSummary', 'No summary available.')}")
+            except:
+                st.warning("Unable to retrieve company overview.")
 
-            # Identify reverse-seasonality months (negative average returns)
-            danger_months = data[data['Return (%)'] < 0]['Month Name'].tolist()
-            if danger_months:
-                st.warning(f"⚠️ Historically underperforming months: {', '.join(danger_months)}")
+        with tab2:
+            st.subheader(f"\U0001F4C9 Seasonal Analysis for {ticker}")
+            try:
+                data, buy_hold, _ = analyze_seasonality(ticker, start_year, end_year)
 
-            # Show Buy & Hold benchmark
-            st.markdown(f"📌 **Buy & Hold Return (Full Period):** {buy_hold:.2f}%")
+                # Filter rows by minimum success rate
+                data = data[data['Success Rate (%)'] >= min_success_rate]
 
-            # Show top 3 months
-            best_months = data.head(3)
-            st.markdown(f"**Best months to buy {ticker}:** {', '.join(best_months['Month Name'].values)}")
-            st.markdown(f"**Success rate range:** {best_months['Success Rate (%)'].min():.1f}% to {best_months['Success Rate (%)'].max():.1f}%")
+                # Identify reverse-seasonality months (negative average returns)
+                danger_months = data[data['Return (%)'] < 0]['Month Name'].tolist()
+                if danger_months:
+                    st.warning(f"⚠️ Historically underperforming months: {', '.join(danger_months)}")
 
-            # Plot chart
-            fig = px.bar(
-                data,
-                x='Month Name',
-                y='Return (%)',
-                color='Success Rate (%)',
-                color_continuous_scale='Blues',
-                title=f'Seasonal Return Analysis for {ticker}',
-                labels={'Return (%)': 'Avg Monthly Return', 'Month Name': 'Month'},
-                hover_data={'Success Rate (%)': ':.2f'}
-            )
-            fig.update_layout(
-                title_font_size=22,
-                font=dict(size=14),
-                plot_bgcolor='white',
-                xaxis=dict(title='Month', showgrid=False),
-                yaxis=dict(title='Average Return (%)', showgrid=True),
-                coloraxis_colorbar=dict(title='Success Rate (%)')
-            )
+                # Show Buy & Hold benchmark
+                st.markdown(f"📌 **Buy & Hold Return (Full Period):** {buy_hold:.2f}%")
 
-            st.plotly_chart(fig, use_container_width=True)
-            st.dataframe(data[['Month Name', 'Return (%)', 'Success Rate (%)']].reset_index(drop=True))
+                # Show top 3 months
+                best_months = data.head(3)
+                st.markdown(f"**Best months to buy {ticker}:** {', '.join(best_months['Month Name'].values)}")
+                st.markdown(f"**Success rate range:** {best_months['Success Rate (%)'].min():.1f}% to {best_months['Success Rate (%)'].max():.1f}%")
 
-        except Exception as e:
-            st.error(f"Failed to analyze {ticker}: {str(e)}")
+                # Plot chart
+                fig = px.bar(
+                    data,
+                    x='Month Name',
+                    y='Return (%)',
+                    color='Success Rate (%)',
+                    color_continuous_scale='Blues',
+                    title=f'Seasonal Return Analysis for {ticker}',
+                    labels={'Return (%)': 'Avg Monthly Return', 'Month Name': 'Month'},
+                    hover_data={'Success Rate (%)': ':.2f'}
+                )
+                fig.update_layout(
+                    title_font_size=22,
+                    font=dict(size=14),
+                    plot_bgcolor='white',
+                    xaxis=dict(title='Month', showgrid=False),
+                    yaxis=dict(title='Average Return (%)', showgrid=True),
+                    coloraxis_colorbar=dict(title='Success Rate (%)')
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+                st.dataframe(data[['Month Name', 'Return (%)', 'Success Rate (%)']].reset_index(drop=True))
+
+            except Exception as e:
+                st.error(f"Failed to analyze {ticker}: {str(e)}")
+
+        with tab3:
+            st.subheader(f"\U0001F4F0 Latest News for {ticker}")
+            try:
+                news = fetch_news(ticker)
+                for entry in news:
+                    st.markdown(f"**{entry.title}**")
+                    st.markdown(f"[{entry.link}]({entry.link})")
+                    st.markdown("---")
+            except:
+                st.info("No recent news available or failed to fetch news.")
+
+        with tab4:
+            st.subheader("\U0001F4C4 Report Preview")
+            st.markdown("""
+            This tab will soon allow you to generate a printable trading plan.
+            It will include:
+            - Top 3 recommended months
+            - Success rate & average return
+            - Visual charts
+            - Trading instructions
+            - Your branding & disclaimers
+            """)
