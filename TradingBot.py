@@ -170,12 +170,12 @@ st.markdown("""
 /* Floating stock icons with enhanced tech look */
 .float-container {
     position: relative;
-    height: 180px;
+    height: 120px;
     overflow: hidden;
-    background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+    background: rgba(32, 58, 67, 0.1);
     border-radius: 12px;
     margin-bottom: 30px;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.12), 0 4px 4px rgba(0,0,0,0.15);
 }
 .float-logo {
     position: absolute;
@@ -202,20 +202,20 @@ st.markdown("""
 
 /* Metric styling */
 .metric-container {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.12);
     border-radius: 8px;
     padding: 10px;
     margin: 5px 0;
-    border-left: 4px solid #4CAF50;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    border-left: 4px solid #66BB6A;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
 }
-.metric-positive { border-left-color: #4CAF50; }
-.metric-neutral { border-left-color: #2196F3; }
-.metric-negative { border-left-color: #F44336; }
+.metric-positive { border-left-color: #66BB6A; }
+.metric-neutral { border-left-color: #42A5F5; }
+.metric-negative { border-left-color: #EF5350; }
 
 /* Button styling */
 div.stButton > button:first-child {
-    background-color: #2c5364;
+    background-color: #3a6b7e;
     color: white;
     border-radius: 8px;
     border: none;
@@ -224,27 +224,30 @@ div.stButton > button:first-child {
     transition: all 0.3s ease;
 }
 div.stButton > button:hover {
-    background-color: #203a43;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    background-color: #2c5364;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     transform: translateY(-2px);
 }
 
 /* Tab styling */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
 }
 .stTabs [data-baseweb="tab"] {
     height: 50px;
     white-space: pre-wrap;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(255, 255, 255, 0.08);
     border-radius: 8px 8px 0 0;
-    gap: 1px;
     padding-top: 10px;
     padding-bottom: 10px;
+    flex: 1;
+    text-align: center;
 }
 .stTabs [aria-selected="true"] {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-bottom: 2px solid #4CAF50;
+    background-color: rgba(255, 255, 255, 0.15);
+    border-bottom: 2px solid #66BB6A;
 }
 
 /* Sidebar styling */
@@ -269,18 +272,20 @@ div.stButton > button:hover {
 
 <!-- App header with tech-inspired design -->
 <div style="text-align: center; margin-bottom: 2rem;">
-    <h1 style="color: #2c5364; font-size: 2.5rem; font-weight: 700; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">
-        <span style="color: #4CAF50;">Market</span>Pulse
+    <h1 style="color: #3a6b7e; font-size: 2.5rem; font-weight: 700; text-shadow: 1px 1px 2px rgba(0,0,0,0.08);">
+        <span style="color: #66BB6A;">Market</span>Pulse
     </h1>
-    <p style="font-size: 1.2rem; opacity: 0.8;">Comprehensive Stock Analysis Platform</p>
+    <p style="font-size: 1.2rem; opacity: 0.85;">Comprehensive Stock Analysis Platform</p>
 </div>
 """, unsafe_allow_html=True)
 
 # === Main App Description ===
 st.markdown("""
+<div style="text-align: center;">
 **Welcome to MarketPulse** - Your comprehensive stock analysis platform. This tool combines seasonal patterns, 
 technical indicators, and sentiment analysis to help you make informed trading decisions.
-""")
+</div>
+""", unsafe_allow_html=True)
 
 # === Sidebar Navigation ===
 st.sidebar.header("\U0001F4CA Analysis Options")
