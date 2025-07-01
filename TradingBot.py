@@ -535,39 +535,113 @@ def fetch_news(ticker):
     return feedparser.parse(feed_url).entries[:5]
 
 # === Main Analysis ===
-if st.sidebar.button("Run Analysis"):
+if sidebar_tab == "Analysis" and st.sidebar.button("Run Analysis"):
     tickers = [t.strip().upper() for t in tickers_input.split(',')]
+
     for ticker in tickers:
-        tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Analysis", "News", "Report Preview"])
+        st.markdown(f"## Analysis for {ticker}", unsafe_allow_html=True)
 
-        with tab1:
-            st.subheader(f"\U0001F4C8 Company Overview: {ticker}")
-            try:
-                _, _, info = analyze_seasonality(ticker, start_year, end_year)
-                st.markdown(f"**Name:** {info.get('longName', 'N/A')}")
-                st.markdown(f"**Sector:** {info.get('sector', 'N/A')}")
-                st.markdown(f"**Industry:** {info.get('industry', 'N/A')}")
-                st.markdown(f"**Summary:** {info.get('longBusinessSummary', 'No summary available.')}")
-            except:
-                st.warning("Unable to retrieve company overview.")
+        # Create tabs for different analysis sections
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "📊 Overview", 
+            "📅 Seasonal", 
+            "📈 Technical", 
+            "💬 Sentiment", 
+            "📰 News", 
+            "📑 Report"
+        ])
 
-        with tab2:
-            st.subheader(f"\U0001F4C9 Seasonal Analysis for {ticker}")
-            try:
-                data, buy_hold, _ = analyze_seasonality(ticker, start_year, end_year)
-                data = data[data['Success Rate (%)'] >= min_success_rate]
-                danger_months = data[data['Return (%)'] < 0]['Month Name'].tolist()
-                if danger_months:
-                    st.warning(f"⚠️ Historically weak months: {', '.join(danger_months)}")
+        try:
+            # Run the comprehensive analysis
+            data, buy_hold, info, df_technical, tech_signals = analyze_seasonality(ticker, start_year, end_year)
 
-                st.markdown(f"**Buy & Hold Return (Full Period):** {buy_hold:.2f}%")
-                best_months = data.head(3)
-                st.markdown(f"**Top 3 months to trade {ticker}:** {', '.join(best_months['Month Name'])}")
+            # Filter data based on minimum success rate
+            filtered_data = data[data['Success Rate (%)'] >= min_success_rate]
 
+            # Get sentiment data if enabled
+            sentiment_data = get_sentiment_data(ticker) if include_sentiment else None
+
+            # === Overview Tab ===
+            with tab1:
+                col1, col2 = st.columns([2, 1])
+
+                with col1:
+                    st.subheader(f"Company Overview: {info.get('longName', ticker)}")
+                    st.markdown(f"**Sector:** {info.get('sector', 'N/A')}")
+                    st.markdown(f"**Industry:** {info.get('industry', 'N/A')}")
+                    st.markdown(f"**Current Price:** ${info.get('currentPrice', 'N/A')}")
+                    st.markdown(f"**52-Week Range:** ${info.get('fiftyTwoWeekLow', 'N/A')} - ${info.get('fiftyTwoWeekHigh', 'N/A')}")
+                    st.markdown(f"**Market Cap:** ${info.get('marketCap', 'N/A'):,}")
+
+                    # Summary with expandable section for long text
+                    with st.expander("Company Summary"):
+                        st.write(info.get('longBusinessSummary', 'No summary available.'))
+
+                with col2:
+                    # Display company logo if available
+                    try:
+                        logo_url = f"https://logo.clearbit.com/{info.get('website', '').split('//')[1].split('/')[0]}"
+                        st.image(logo_url, width=150)
+                    except:
+                        st.info("Logo not available")
+
+                    # Key metrics in styled containers
+                    st.markdown("<h4>Key Metrics</h4>", unsafe_allow_html=True)
+
+                    # Technical signal summary
+                    signal_color = "metric-positive" if "Bullish" in tech_signals.get('overall', '') else \
+                                  "metric-negative" if "Bearish" in tech_signals.get('overall', '') else "metric-neutral"
+
+                    st.markdown(f"""
+                    <div class="metric-container {signal_color}">
+                        <strong>Technical Signal:</strong> {tech_signals.get('overall', 'N/A')}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # Sentiment summary if available
+                    if sentiment_data:
+                        sentiment_color = "metric-positive" if sentiment_data['category'] == "Bullish" else \
+                                         "metric-negative" if sentiment_data['category'] == "Bearish" else "metric-neutral"
+
+                        st.markdown(f"""
+                        <div class="metric-container {sentiment_color}">
+                            <strong>Sentiment:</strong> {sentiment_data['category']} ({sentiment_data['score']:.2f})
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    # Seasonal summary
+                    best_month = data.iloc[0]['Month Name'] if not data.empty else "N/A"
+                    best_return = data.iloc[0]['Return (%)'] if not data.empty else 0
+                    seasonal_color = "metric-positive" if best_return > 0 else "metric-negative"
+
+                    st.markdown(f"""
+                    <div class="metric-container {seasonal_color}">
+                        <strong>Best Month:</strong> {best_month} ({best_return:.2f}%)
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            # === Seasonal Analysis Tab ===
+            with tab2:
+                st.subheader(f"Seasonal Analysis for {ticker}")
+
+                # Display key seasonal insights
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown(f"**Buy & Hold Return ({start_year}-{end_year}):** {buy_hold:.2f}%")
+                    best_months = filtered_data.head(3)
+                    st.markdown(f"**Top 3 months to trade:** {', '.join(best_months['Month Name'].tolist())}")
+
+                with col2:
+                    danger_months = filtered_data[filtered_data['Return (%)'] < 0]['Month Name'].tolist()
+                    if danger_months:
+                        st.warning(f"⚠️ Historically weak months: {', '.join(danger_months)}")
+
+                # Seasonal return chart
                 fig = px.bar(
-                    data, x='Month Name', y='Return (%)', color='Success Rate (%)',
-                    color_continuous_scale='Blues',
-                    title=f'Seasonal Return Analysis for {ticker}',
+                    filtered_data, x='Month Name', y='Return (%)', color='Success Rate (%)',
+                    color_continuous_scale='RdYlGn',
+                    title=f'Monthly Return Analysis ({start_year}-{end_year})',
                     labels={'Return (%)': 'Avg Return', 'Month Name': 'Month'},
                     hover_data={'Success Rate (%)': ':.2f'}
                 )
@@ -578,27 +652,488 @@ if st.sidebar.button("Run Analysis"):
                     yaxis=dict(title='Avg Return (%)', showgrid=True)
                 )
                 st.plotly_chart(fig, use_container_width=True)
-                st.dataframe(data[['Month Name', 'Return (%)', 'Success Rate (%)']])
-            except Exception as e:
-                st.error(f"Error in analysis: {str(e)}")
 
-        with tab3:
-            st.subheader(f"\U0001F4F0 Latest News for {ticker}")
+                # Data table with seasonal statistics
+                st.subheader("Monthly Performance Statistics")
+                st.dataframe(filtered_data[['Month Name', 'Return (%)', 'Success Rate (%)']])
+
+                # Download link for seasonal data
+                st.markdown(
+                    get_download_link(filtered_data, f"{ticker}_seasonal_analysis.csv", "Download Seasonal Data"),
+                    unsafe_allow_html=True
+                )
+
+            # === Technical Analysis Tab ===
+            with tab3:
+                st.subheader(f"Technical Analysis for {ticker}")
+
+                # Technical signals summary
+                st.markdown("### Current Technical Signals")
+
+                # Create columns for signal display
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    st.markdown(f"**Overall Signal:** {tech_signals.get('overall', 'N/A')}")
+                    if 'rsi_value' in tech_signals:
+                        st.markdown(f"**RSI:** {tech_signals['rsi_value']:.2f} ({tech_signals['rsi_signal']})")
+
+                with col2:
+                    if 'price_vs_sma50' in tech_signals:
+                        st.markdown(f"**Price vs SMA50:** {tech_signals['price_vs_sma50']}")
+                    if 'price_vs_sma200' in tech_signals:
+                        st.markdown(f"**Price vs SMA200:** {tech_signals['price_vs_sma200']}")
+
+                with col3:
+                    if 'macd_signal' in tech_signals:
+                        st.markdown(f"**MACD Signal:** {tech_signals['macd_signal']}")
+                    if 'golden_cross' in tech_signals and tech_signals['golden_cross']:
+                        st.markdown("**Golden Cross Detected!** ✨")
+                    if 'death_cross' in tech_signals and tech_signals['death_cross']:
+                        st.markdown("**Death Cross Detected!** ⚠️")
+
+                # Technical chart
+                if show_sma or show_ema or show_macd or show_rsi or show_bollinger:
+                    st.subheader("Technical Chart")
+
+                    # Create figure with secondary y-axis for indicators
+                    recent_data = df_technical.tail(180)  # Last ~6 months
+
+                    # Determine which plots to show
+                    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                                       vertical_spacing=0.03, 
+                                       row_heights=[0.7, 0.3],
+                                       subplot_titles=("Price & Moving Averages", "Indicators"))
+
+                    # Add price candlestick
+                    fig.add_trace(
+                        go.Candlestick(
+                            x=recent_data.index,
+                            open=recent_data['Open'],
+                            high=recent_data['High'],
+                            low=recent_data['Low'],
+                            close=recent_data['Close'],
+                            name="Price"
+                        ),
+                        row=1, col=1
+                    )
+
+                    # Add moving averages if selected
+                    if show_sma:
+                        fig.add_trace(
+                            go.Scatter(x=recent_data.index, y=recent_data['SMA20'], name="SMA20", line=dict(color='blue')),
+                            row=1, col=1
+                        )
+                        fig.add_trace(
+                            go.Scatter(x=recent_data.index, y=recent_data['SMA50'], name="SMA50", line=dict(color='orange')),
+                            row=1, col=1
+                        )
+                        fig.add_trace(
+                            go.Scatter(x=recent_data.index, y=recent_data['SMA200'], name="SMA200", line=dict(color='red')),
+                            row=1, col=1
+                        )
+
+                    if show_ema:
+                        fig.add_trace(
+                            go.Scatter(x=recent_data.index, y=recent_data['EMA20'], name="EMA20", line=dict(color='purple')),
+                            row=1, col=1
+                        )
+
+                    # Add Bollinger Bands if selected
+                    if show_bollinger:
+                        fig.add_trace(
+                            go.Scatter(x=recent_data.index, y=recent_data['BB_High'], name="BB Upper", line=dict(color='rgba(0,128,0,0.3)')),
+                            row=1, col=1
+                        )
+                        fig.add_trace(
+                            go.Scatter(x=recent_data.index, y=recent_data['BB_Mid'], name="BB Middle", line=dict(color='rgba(0,128,0,0.5)')),
+                            row=1, col=1
+                        )
+                        fig.add_trace(
+                            go.Scatter(x=recent_data.index, y=recent_data['BB_Low'], name="BB Lower", line=dict(color='rgba(0,128,0,0.3)')),
+                            row=1, col=1
+                        )
+
+                    # Add RSI if selected
+                    if show_rsi:
+                        fig.add_trace(
+                            go.Scatter(x=recent_data.index, y=recent_data['RSI'], name="RSI", line=dict(color='green')),
+                            row=2, col=1
+                        )
+                        # Add RSI reference lines
+                        fig.add_shape(type="line", x0=recent_data.index[0], x1=recent_data.index[-1], y0=70, y1=70,
+                                     line=dict(color="red", width=1, dash="dash"), row=2, col=1)
+                        fig.add_shape(type="line", x0=recent_data.index[0], x1=recent_data.index[-1], y0=30, y1=30,
+                                     line=dict(color="green", width=1, dash="dash"), row=2, col=1)
+
+                    # Add MACD if selected
+                    if show_macd:
+                        fig.add_trace(
+                            go.Scatter(x=recent_data.index, y=recent_data['MACD'], name="MACD", line=dict(color='blue')),
+                            row=2, col=1
+                        )
+                        fig.add_trace(
+                            go.Scatter(x=recent_data.index, y=recent_data['MACD_Signal'], name="MACD Signal", line=dict(color='red')),
+                            row=2, col=1
+                        )
+                        # Add MACD histogram
+                        fig.add_trace(
+                            go.Bar(x=recent_data.index, y=recent_data['MACD_Histogram'], name="MACD Histogram", marker_color='green'),
+                            row=2, col=1
+                        )
+
+                    # Update layout
+                    fig.update_layout(
+                        title=f"{ticker} Technical Analysis",
+                        xaxis_title="Date",
+                        yaxis_title="Price ($)",
+                        height=800,
+                        xaxis_rangeslider_visible=False,
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                        template="plotly_white"
+                    )
+
+                    st.plotly_chart(fig, use_container_width=True)
+
+            # === Sentiment Analysis Tab ===
+            with tab4:
+                st.subheader(f"Sentiment Analysis for {ticker}")
+
+                if include_sentiment and sentiment_data:
+                    # Display sentiment summary
+                    sentiment_score = sentiment_data['score']
+                    sentiment_category = sentiment_data['category']
+
+                    # Create a gauge chart for sentiment
+                    fig = go.Figure(go.Indicator(
+                        mode = "gauge+number",
+                        value = (sentiment_score + 1) * 50,  # Convert from -1,1 to 0,100 scale
+                        title = {'text': f"Sentiment Score: {sentiment_category}"},
+                        gauge = {
+                            'axis': {'range': [0, 100], 'tickwidth': 1},
+                            'bar': {'color': "darkblue"},
+                            'steps': [
+                                {'range': [0, 30], 'color': "red"},
+                                {'range': [30, 45], 'color': "orange"},
+                                {'range': [45, 55], 'color': "yellow"},
+                                {'range': [55, 70], 'color': "lightgreen"},
+                                {'range': [70, 100], 'color': "green"}
+                            ],
+                            'threshold': {
+                                'line': {'color': "black", 'width': 4},
+                                'thickness': 0.75,
+                                'value': (sentiment_score + 1) * 50
+                            }
+                        }
+                    ))
+
+                    fig.update_layout(
+                        height=300,
+                        margin=dict(l=20, r=20, t=50, b=20),
+                    )
+
+                    st.plotly_chart(fig, use_container_width=True)
+
+                    # Display sentiment details
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.markdown(f"**News Sentiment:** {sentiment_data['news_score']:.2f}")
+                        st.markdown(f"**News Articles Analyzed:** {sentiment_data['news_count']}")
+
+                    with col2:
+                        st.markdown(f"**Social Media Sentiment:** {sentiment_data['social_score']:.2f}")
+                        st.markdown(f"**Social Posts Analyzed:** {sentiment_data['social_count']}")
+
+                    # Sentiment interpretation
+                    st.subheader("Sentiment Interpretation")
+
+                    if sentiment_category == "Bullish":
+                        st.markdown("""
+                        📈 **Bullish Sentiment Detected**
+
+                        The overall sentiment for this stock is positive. This suggests that:
+                        - News and social media coverage is generally favorable
+                        - Market participants have a positive outlook
+                        - There may be positive catalysts or developments
+
+                        *Consider this a potential supporting factor for long positions.*
+                        """)
+                    elif sentiment_category == "Bearish":
+                        st.markdown("""
+                        📉 **Bearish Sentiment Detected**
+
+                        The overall sentiment for this stock is negative. This suggests that:
+                        - News and social media coverage is generally unfavorable
+                        - Market participants have concerns about the stock
+                        - There may be negative catalysts or developments
+
+                        *Consider this a potential supporting factor for short positions or caution.*
+                        """)
+                    else:
+                        st.markdown("""
+                        📊 **Neutral Sentiment Detected**
+
+                        The overall sentiment for this stock is balanced. This suggests that:
+                        - News and social media coverage is mixed
+                        - Market participants have varied opinions
+                        - There may be both positive and negative factors at play
+
+                        *Consider focusing more on technical and seasonal factors for this stock.*
+                        """)
+                else:
+                    st.info("Sentiment analysis is disabled. Enable it in the sidebar to see sentiment data.")
+
+            # === News Tab ===
+            with tab5:
+                st.subheader(f"Latest News for {ticker}")
+
+                try:
+                    news = fetch_news(ticker)
+                    if news:
+                        for i, entry in enumerate(news):
+                            with st.container():
+                                st.markdown(f"### {entry.title}")
+                                st.markdown(f"*{entry.published if hasattr(entry, 'published') else 'Recent'}*")
+                                if hasattr(entry, 'summary'):
+                                    st.markdown(entry.summary)
+                                st.markdown(f"[Read more]({entry.link})")
+                                if i < len(news) - 1:  # Don't add divider after last item
+                                    st.markdown("---")
+                    else:
+                        st.info("No recent news found for this ticker.")
+                except Exception as e:
+                    st.error(f"Error fetching news: {str(e)}")
+
+            # === Report Tab ===
+            with tab6:
+                st.subheader(f"Comprehensive Report for {ticker}")
+
+                # Generate report data
+                report_df = generate_pdf_report(ticker, filtered_data, df_technical, 
+                                              sentiment_data if include_sentiment else {})
+
+                # Report preview
+                st.markdown("### Report Preview")
+
+                # Summary of findings
+                st.markdown("#### Key Findings")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown(f"**Best Trading Months:** {', '.join(filtered_data.head(3)['Month Name'].tolist())}")
+                    st.markdown(f"**Technical Signal:** {tech_signals.get('overall', 'N/A')}")
+                    if include_sentiment and sentiment_data:
+                        st.markdown(f"**Sentiment Analysis:** {sentiment_data['category']}")
+
+                with col2:
+                    st.markdown(f"**Buy & Hold Return:** {buy_hold:.2f}%")
+                    if 'rsi_value' in tech_signals:
+                        st.markdown(f"**Current RSI:** {tech_signals['rsi_value']:.2f}")
+                    if 'macd_signal' in tech_signals:
+                        st.markdown(f"**MACD Signal:** {tech_signals['macd_signal']}")
+
+                # Strategy recommendation
+                st.markdown("#### Strategy Recommendation")
+
+                # Combine signals for recommendation
+                tech_signal = tech_signals.get('overall', 'Neutral')
+                seasonal_signal = "Bullish" if filtered_data.iloc[0]['Return (%)'] > 2 else "Neutral" if filtered_data.iloc[0]['Return (%)'] > 0 else "Bearish"
+                sentiment_signal = sentiment_data['category'] if include_sentiment and sentiment_data else "Neutral"
+
+                # Count signals
+                bullish_count = sum(1 for signal in [tech_signal, seasonal_signal, sentiment_signal] if "Bullish" in signal)
+                bearish_count = sum(1 for signal in [tech_signal, seasonal_signal, sentiment_signal] if "Bearish" in signal)
+
+                if bullish_count > bearish_count:
+                    st.markdown("""
+                    🟢 **Bullish Outlook**
+
+                    Based on the combined analysis of seasonal patterns, technical indicators, and sentiment, 
+                    this stock shows a generally positive outlook. Consider a long position with appropriate 
+                    risk management.
+                    """)
+                elif bearish_count > bullish_count:
+                    st.markdown("""
+                    🔴 **Bearish Outlook**
+
+                    Based on the combined analysis of seasonal patterns, technical indicators, and sentiment, 
+                    this stock shows a generally negative outlook. Consider avoiding long positions or implementing 
+                    hedging strategies.
+                    """)
+                else:
+                    st.markdown("""
+                    🟡 **Neutral Outlook**
+
+                    Based on the combined analysis of seasonal patterns, technical indicators, and sentiment, 
+                    this stock shows a mixed outlook. Consider waiting for clearer signals before taking a position, 
+                    or implement a market-neutral strategy.
+                    """)
+
+                # Download options
+                st.subheader("Download Options")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown(
+                        get_download_link(report_df, f"{ticker}_comprehensive_report.csv", "Download Report Data (CSV)"),
+                        unsafe_allow_html=True
+                    )
+
+                with col2:
+                    # Add to portfolio button
+                    if st.button(f"Add {ticker} to Portfolio"):
+                        if ticker in st.session_state.portfolio:
+                            st.session_state.portfolio[ticker]['shares'] += 10  # Default 10 shares
+                        else:
+                            st.session_state.portfolio[ticker] = {
+                                'shares': 10,
+                                'added_date': datetime.now().strftime('%Y-%m-%d')
+                            }
+                        st.success(f"Added {ticker} to your portfolio!")
+
+        except Exception as e:
+            st.error(f"Error analyzing {ticker}: {str(e)}")
+            st.markdown("Please check the ticker symbol and try again.")
+
+# === Portfolio Analysis ===
+elif sidebar_tab == "Portfolio" and st.session_state.portfolio:
+    st.title("Portfolio Analysis")
+
+    # Display portfolio summary
+    st.subheader("Current Portfolio")
+
+    # Create portfolio dataframe
+    portfolio_data = []
+    total_value = 0
+
+    for ticker, details in st.session_state.portfolio.items():
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            current_price = info.get('currentPrice', 0)
+            value = current_price * details['shares']
+            total_value += value
+
+            portfolio_data.append({
+                'Ticker': ticker,
+                'Company': info.get('shortName', ticker),
+                'Shares': details['shares'],
+                'Current Price': current_price,
+                'Value': value,
+                'Added Date': details['added_date']
+            })
+        except:
+            portfolio_data.append({
+                'Ticker': ticker,
+                'Company': ticker,
+                'Shares': details['shares'],
+                'Current Price': 'N/A',
+                'Value': 'N/A',
+                'Added Date': details['added_date']
+            })
+
+    portfolio_df = pd.DataFrame(portfolio_data)
+
+    # Display portfolio value
+    if total_value > 0:
+        st.metric("Total Portfolio Value", f"${total_value:,.2f}")
+
+    # Display portfolio table
+    st.dataframe(portfolio_df)
+
+    # Portfolio download
+    st.markdown(
+        get_download_link(portfolio_df, "marketpulse_portfolio.csv", "Download Portfolio Data"),
+        unsafe_allow_html=True
+    )
+
+    # Portfolio analysis
+    if len(portfolio_data) > 0:
+        st.subheader("Portfolio Analysis")
+
+        # Run analysis on each stock in portfolio
+        for ticker in st.session_state.portfolio.keys():
+            with st.expander(f"Analysis for {ticker}"):
+                try:
+                    # Quick analysis of the stock
+                    data, buy_hold, info, df_technical, tech_signals = analyze_seasonality(ticker, datetime.now().year-3, datetime.now().year)
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.markdown(f"**Technical Signal:** {tech_signals.get('overall', 'N/A')}")
+                        st.markdown(f"**Best Month to Trade:** {data.iloc[0]['Month Name']} ({data.iloc[0]['Return (%)']:.2f}%)")
+
+                    with col2:
+                        if 'rsi_value' in tech_signals:
+                            st.markdown(f"**Current RSI:** {tech_signals['rsi_value']:.2f}")
+                        if 'macd_signal' in tech_signals:
+                            st.markdown(f"**MACD Signal:** {tech_signals['macd_signal']}")
+                except:
+                    st.warning(f"Could not analyze {ticker}")
+
+    # Portfolio report
+    st.subheader("Portfolio Report")
+    st.markdown("Generate a comprehensive report of your entire portfolio with analysis of each stock.")
+
+    if st.button("Generate Portfolio Report"):
+        # Create a more detailed portfolio report
+        report_data = []
+
+        for ticker, details in st.session_state.portfolio.items():
             try:
-                news = fetch_news(ticker)
-                for entry in news:
-                    st.markdown(f"**{entry.title}**")
-                    st.markdown(f"[{entry.link}]({entry.link})")
-                    st.markdown("---")
-            except:
-                st.info("No news or unable to fetch.")
+                data, buy_hold, info, df_technical, tech_signals = analyze_seasonality(ticker, datetime.now().year-3, datetime.now().year)
+                sentiment_data = get_sentiment_data(ticker)
 
-        with tab4:
-            st.subheader("\U0001F4C4 Report Preview")
-            st.markdown("""
-            This report will include:
-            - Top 3 performing months
-            - Success rate chart
-            - Strategy notes
-            - Visuals for print/export
-            """)
+                report_data.append({
+                    'Ticker': ticker,
+                    'Company': info.get('shortName', ticker),
+                    'Shares': details['shares'],
+                    'Current Price': info.get('currentPrice', 'N/A'),
+                    'Technical Signal': tech_signals.get('overall', 'N/A'),
+                    'Best Month': data.iloc[0]['Month Name'],
+                    'Sentiment': sentiment_data['category'] if sentiment_data else 'N/A',
+                    'RSI': tech_signals.get('rsi_value', 'N/A'),
+                    'MACD Signal': tech_signals.get('macd_signal', 'N/A')
+                })
+            except:
+                report_data.append({
+                    'Ticker': ticker,
+                    'Company': ticker,
+                    'Shares': details['shares'],
+                    'Current Price': 'N/A',
+                    'Technical Signal': 'N/A',
+                    'Best Month': 'N/A',
+                    'Sentiment': 'N/A',
+                    'RSI': 'N/A',
+                    'MACD Signal': 'N/A'
+                })
+
+        report_df = pd.DataFrame(report_data)
+        st.dataframe(report_df)
+
+        # Download link
+        st.markdown(
+            get_download_link(report_df, "marketpulse_portfolio_report.csv", "Download Portfolio Report"),
+            unsafe_allow_html=True
+        )
+
+# === Saved Plans ===
+elif sidebar_tab == "Saved Plans" and st.session_state.saved_plans:
+    st.title("Saved Analysis Plans")
+
+    # Display all saved plans
+    for plan_name, plan in st.session_state.saved_plans.items():
+        with st.expander(f"Plan: {plan_name}"):
+            st.markdown(f"**Tickers:** {', '.join(plan['tickers'])}")
+            st.markdown(f"**Time Period:** {plan['start_year']} - {plan['end_year']}")
+            st.markdown(f"**Indicators:** {', '.join(plan['indicators'])}")
+            st.markdown(f"**Include Sentiment:** {'Yes' if plan.get('include_sentiment', False) else 'No'}")
+
+            # Button to load this plan
+            if st.button(f"Load {plan_name}", key=f"load_{plan_name}"):
+                st.session_state.current_plan = plan
+                st.experimental_rerun()
